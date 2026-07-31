@@ -16,7 +16,41 @@ import path from "node:path";
 /**
  * @param {string} entryPath - путь к entry бандлинга
  */
-export function bundle(entryPath) {}
+export function bundle(entryPath) {
+  const entryContent = fs.readFileSync(entryPath, "utf-8");
+
+  const modules = [];
+
+  function getInsideCode(content) {
+    searchRequireCalls(content).forEach((modulePath) => {
+      const parentDir = path.dirname(entryPath);
+      const absolutePath = path.resolve(parentDir, modulePath);
+      const moduleCode = fs.readFileSync(absolutePath, 'utf-8');
+
+      modules.push(`
+      modules['${modulePath}'] = function (require, module) {
+        ${moduleCode}
+      };`);
+      getInsideCode(moduleCode);
+    });
+  }
+  getInsideCode(entryContent);
+
+  const header = `
+  var modules = {};
+  function require(name) {
+    modules[name](require, modules[name]);
+    return modules[name].exports;
+  }`;
+  const entry = `
+  (function(require, module) { ${entryContent} })(require, modules)
+  `;
+
+  const result = `${header}\n${modules.join("\n")}\n${entry}`;
+  console.log()
+
+  return result;
+}
 
 /**
  * Функция для поиска в файле вызовов require
