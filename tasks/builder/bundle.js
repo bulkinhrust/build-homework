@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { resolve } from "../3/resolve.js";
 /**
  * Примерный алгоритм работы бандлера:
  * 1. Прочитать entry и собрать список всех вызовов require
@@ -23,9 +24,8 @@ export function bundle(entryPath) {
 
   function getInsideCode(content) {
     searchRequireCalls(content).forEach((modulePath) => {
-      const parentDir = path.dirname(entryPath);
-      const absolutePath = path.resolve(parentDir, modulePath);
-      const moduleCode = fs.readFileSync(absolutePath, 'utf-8');
+      const resolvedPath = resolve(modulePath, entryPath)
+      const moduleCode = fs.readFileSync(resolvedPath, 'utf-8');
 
       modules.push(`
       modules['${modulePath}'] = function (require, module) {
