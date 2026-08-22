@@ -19,22 +19,46 @@ import { resolve } from "../3/resolve.js";
  */
 export function bundle(entryPath) {
   const entryContent = fs.readFileSync(entryPath, "utf-8");
+  const requireCalls = searchRequireCalls(entryContent).map((modulePath) => ({
+    modulePath: resolve(modulePath, entryPath),
+    moduleId: modulePath,
+    parent: entryPath,
+  }));
 
   const modules = [];
 
-  function getInsideCode(content) {
-    searchRequireCalls(content).forEach((modulePath) => {
-      const resolvedPath = resolve(modulePath, entryPath)
-      const moduleCode = fs.readFileSync(resolvedPath, 'utf-8');
+  while (requireCalls.length !== 0) {
+    const { modulePath, moduleId, parent } = requireCalls.pop();
+    let finalModulePath;
 
-      modules.push(`
-      modules['${modulePath}'] = function (require, module) {
-        ${moduleCode}
-      };`);
-      getInsideCode(moduleCode);
-    });
+    if (path.isAbsolute(modulePath)) {
+      finalModulePath = modulePath;
+    } else {
+      finalModulePath = path.resolve(path.dirname(parent), modulePath);
+    }
+
+    const moduleCode = fs.readFileSync(finalModulePath, 'utf-8');
+
+    if (finalModulePath.endsWith('.json')) {
+      moduleCode = `module.exports = ${moduleCode}`;
+    } else {
+      const moduleRequireCalls = searchRequireCalls(moduleCode);
+
+      if (moduleRequireCalls.length) {
+        requireCalls.push(
+          ...moduleRequireCalls.map((newModulePath) => ({
+            modulePath: resolve(newModulePath, finalModulePath),
+            moduleId: newModulePath,
+            parent: finalModulePath,
+          }))
+        );
+      }
+    }
+
+    modules.push(`modules['${moduleId}'] = function (require, module) {
+${moduleCode}
+    };`);
   }
-  getInsideCode(entryContent);
 
   const header = `
   var modules = {};
@@ -47,8 +71,6 @@ export function bundle(entryPath) {
   `;
 
   const result = `${header}\n${modules.join("\n")}\n${entry}`;
-  console.log()
-
   return result;
 }
 

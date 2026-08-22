@@ -20,16 +20,29 @@ export function resolve(importPath, parentPath) {
 }
 
 function resolveAlias(importPath) {
-  const splitedPath = importPath.split('/');
-  const aliasPath = imports[`${splitedPath[0]}/*`];
+  const aliasedPath = getAlias(importPath);
 
-  if (aliasPath) {
-    return aliasPath.replace('*', splitedPath.slice(1).join('/'));
+  if (aliasedPath) {
+    return path.resolve(rootDir, aliasedPath);
   }
-  return importPath;
+  return null;
+}
+
+function getAlias(importPath) {
+  for (const [aliasPattern, targetPattern] of Object.entries(imports)) {
+    const aliasPrefix = aliasPattern.split("*")[0];
+    const targetPrefix = targetPattern.split("*")[0];
+
+    if (importPath.startsWith(aliasPrefix)) {
+      return importPath.replace(aliasPrefix, targetPrefix);
+    }
+  }
 }
 
 function resolveExtension(absolutePath) {
+  if (!absolutePath) {
+    return absolutePath;
+  }
   const extention = path.extname(absolutePath);
   if (extention) {
     return absolutePath;
@@ -42,7 +55,7 @@ function resolveExtension(absolutePath) {
     }
   }
 
-  return '';
+  return null;
 }
 
 function isFileExists(filePath) {
